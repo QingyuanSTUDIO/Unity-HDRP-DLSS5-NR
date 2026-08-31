@@ -25,7 +25,7 @@ namespace UnityRhi.DlssNr.Hdrp.Editor
                 EditorGUILayout.LabelField(
                     "Game Target", $"{DlssNrHdrpPostProcess.LastGameTargetWidth} x {DlssNrHdrpPostProcess.LastGameTargetHeight}");
                 EditorGUILayout.LabelField(
-                    "Scale", $"{(float)DlssNrHdrpPostProcess.LastOutputWidth / DlssNrHdrpPostProcess.LastInputWidth:0.###}x");
+                    "Game Scale", $"{(float)DlssNrHdrpPostProcess.LastGameTargetWidth / DlssNrHdrpPostProcess.LastOutputWidth:0.###}x");
                 Repaint();
             }
             else
