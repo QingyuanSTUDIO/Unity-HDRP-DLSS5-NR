@@ -12,6 +12,12 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 时域重建。它不是 DLSS Super Resolution、Frame Generation 或 Ray Reconstruction，
 也不会生成另一张光线重构图。
 
+### 效果对比
+
+下图为 DLSS-NR 开启与关闭时的画面对比示例：
+
+![DLSS-NR 开关效果对比](Docs/dlss5-comparison.png)
+
 ### 前置依赖
 
 | 依赖 | 要求 | 地址 |
@@ -49,6 +55,10 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 
 6. 在 Volume Profile 中选择 **Add Override > Post-processing > DLSS Neural Rendering**，
    勾选 **Enabled** override 并打开。确认 HDRP 相机启用 Depth 和 Motion Vectors。
+
+Volume 面板示例：
+
+![DLSS-NR Volume 后处理面板](Docs/dlss5-volume-panel.png)
 
 本实现不要求开启动态分辨率，输入和输出均为当前相机实际尺寸。
 
@@ -104,6 +114,10 @@ the UnityRHI DLSS-NR runtime, and writes the result into HDRP's post-process cha
 current implementation is 1:1 at the camera's actual resolution. It is neural enhancement
 and temporal reconstruction, not DLSS Super Resolution, Frame Generation, or Ray Reconstruction.
 
+Example comparison (DLSS-NR on/off):
+
+![DLSS-NR on/off comparison](Docs/dlss5-comparison.png)
+
 ### Requirements and links
 
 - Unity 6.3+: [Unity archive](https://unity.com/releases/editor/archive)
@@ -125,6 +139,10 @@ Use Direct3D 12 and restart Unity. In **HDRP Global Settings > Custom Post Proce
 After Post Process**, add `UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the **DLSS Neural
 Rendering** Volume override and enable its **Enabled** override. HDRP depth and motion vectors
 must be available. Dynamic resolution is not required.
+
+Example Volume panel:
+
+![DLSS-NR Volume panel](Docs/dlss5-volume-panel.png)
 
 Game cameras run the full path. SceneView is intentionally pass-through because editor cameras
 do not provide stable runtime temporal history. Check the Game view or a player build for the
