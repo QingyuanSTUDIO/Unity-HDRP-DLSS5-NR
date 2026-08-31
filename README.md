@@ -21,7 +21,7 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 | UnityDLSSNR | 上游 UnityRHI managed/native 包，本仓库依赖它 | [Kuan-Mi/UnityDLSSNR](https://github.com/Kuan-Mi/UnityDLSSNR) |
 | Managed 包 | `top.kuanmi.unityrhi` | [最新 Release](https://github.com/Kuan-Mi/UnityDLSSNR/releases/latest) |
 | Native 包 | `top.kuanmi.unityrhi.native`，必须嵌入项目 | [native 1.0.0 下载](https://github.com/Kuan-Mi/UnityDLSSNR/releases/download/v1.0.0/top.kuanmi.unityrhi.native-1.0.0.zip) |
-| NVIDIA | 支持 DLSS-NR 的 NVIDIA GPU、驱动和 `nvngx_dlssnr.dll` | [NVIDIA DLSS](https://developer.nvidia.com/dlss) |
+| NVIDIA | 支持 DLSS-NR 的 NVIDIA GPU、驱动和匹配的原生运行时 | [NVIDIA DLSS](https://developer.nvidia.com/dlss) |
 
 平台仅支持 Windows x64 + Direct3D 12；不支持 D3D11、macOS、Linux 或非 NVIDIA 设备。
 
@@ -35,14 +35,9 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
    Packages/top.kuanmi.unityrhi.native
    ```
 
-   确认文件存在：
-
-   ```text
-   Packages/top.kuanmi.unityrhi.native/Plugins/x86_64/nvngx_dlssnr.dll
-   ```
-
-   native 包必须位于目标项目 `Packages` 下，不能直接引用外部 `Build` 文件夹；它需要
-   在 Unity 创建 D3D12 设备前完成预加载。
+   native 包必须位于目标项目 `Packages` 下，不能直接引用外部 `Build` 文件夹；请自行
+   通过合法、可信的渠道获取与驱动匹配的 NVIDIA DLSS-NR 原生运行时，并按上游项目
+   的说明放入该包的插件目录。本仓库不包含、不分发也不提供泄露的 NVIDIA 二进制文件。
 4. 在 **Edit > Project Settings > Player > Other Settings** 设置 **Direct3D 12**，
    重启 Unity。
 5. 在 **Edit > Project Settings > Graphics > HDRP Global Settings** 的
@@ -81,7 +76,7 @@ reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径�
 
 ### 排错
 
-- 黑屏/灰屏：确认 D3D12、native 包路径、DLL 路径、Global Settings 注册和 Volume Enabled。
+- 黑屏/灰屏：确认 D3D12、native 包路径、合法获取的原生运行时、Global Settings 注册和 Volume Enabled。
 - Console 出现 URP `Core.hlsl`、`TextureDimension` 或 D3D11 错误：说明仍有旧 URP 文件或使用了错误图形 API。
 - 画面裁切/偏移：检查 Game View 宽高比、相机 viewport 和 RTHandle scale，不要使用 backing texture 尺寸。
 - 没有明显效果：DLSS-NR 是 1:1 增强，不是超分辨率；请在高频细节、运动和 Debug Mode 下比较。
@@ -95,8 +90,9 @@ reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径�
 
 ### 许可证
 
-本仓库包含 Unity HDRP 集成层。UnityRHI、DLSS/NGX native runtime、`nvngx_dlssnr.dll`
-及 NVIDIA 组件受各自作者和 NVIDIA 许可、分发条款约束。
+本仓库包含 Unity HDRP 集成层。UnityRHI、DLSS/NGX 原生运行时及 NVIDIA 组件受各自
+作者和 NVIDIA 许可、分发条款约束。原生运行时需要用户自行通过合法渠道获取；本仓库
+不包含、不分发或链接任何泄露的 NVIDIA 二进制文件。
 
 ## English
 
@@ -122,8 +118,9 @@ and temporal reconstruction, not DLSS Super Resolution, Frame Generation, or Ray
 
 Copy `Core`, `HDRP`, and `Shaders` into `Assets/Plugins/DLSS 5`; install
 `top.kuanmi.unityrhi`; and embed the native package at
-`Packages/top.kuanmi.unityrhi.native`. Verify
-`Packages/top.kuanmi.unityrhi.native/Plugins/x86_64/nvngx_dlssnr.dll` exists.
+`Packages/top.kuanmi.unityrhi.native`. Obtain the matching NVIDIA native runtime
+separately from a legitimate source and place it according to the upstream package
+instructions. This repository does not include, redistribute, or link to leaked binaries.
 Use Direct3D 12 and restart Unity. In **HDRP Global Settings > Custom Post Process Orders >
 After Post Process**, add `UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the **DLSS Neural
 Rendering** Volume override and enable its **Enabled** override. HDRP depth and motion vectors
@@ -134,4 +131,6 @@ do not provide stable runtime temporal history. Check the Game view or a player 
 actual effect. Common failures are wrong graphics API, a non-embedded native package, missing
 DLL, an unregistered custom post process, or a disabled Volume override.
 
-NVIDIA runtime components remain subject to NVIDIA licensing and redistribution terms.
+The NVIDIA native runtime must be obtained separately through a legitimate source. This
+repository does not include, redistribute, or link to leaked NVIDIA binaries. NVIDIA runtime
+components remain subject to NVIDIA licensing and redistribution terms.
