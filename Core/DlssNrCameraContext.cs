@@ -43,6 +43,8 @@ namespace UnityRhi.DlssNr.Hdrp
 
         public int Width { get; }
         public int Height { get; }
+        public int OutputWidth { get; }
+        public int OutputHeight { get; }
         public RenderTexture ColorRt { get; private set; }
         public RenderTexture MotionRt { get; private set; }
         public RenderTexture DepthRt { get; private set; }
@@ -66,12 +68,16 @@ namespace UnityRhi.DlssNr.Hdrp
         private bool _hasHistory;
         private bool _disposed;
 
-        public DlssNrCameraContext(int width, int height, string cameraName)
+        public DlssNrCameraContext(int width, int height, int outputWidth, int outputHeight, string cameraName)
         {
             if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));
             if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height));
+            if (outputWidth <= 0) throw new ArgumentOutOfRangeException(nameof(outputWidth));
+            if (outputHeight <= 0) throw new ArgumentOutOfRangeException(nameof(outputHeight));
             Width = width;
             Height = height;
+            OutputWidth = outputWidth;
+            OutputHeight = outputHeight;
 
             try
             {
@@ -81,7 +87,7 @@ namespace UnityRhi.DlssNr.Hdrp
                     GraphicsFormat.R16G16_SFloat);
                 DepthRt = CreateRenderTexture($"DLSS-NR {cameraName} Depth", width, height,
                     GraphicsFormat.R32_SFloat);
-                OutputRt = CreateRenderTexture($"DLSS-NR {cameraName} Output", width, height,
+                OutputRt = CreateRenderTexture($"DLSS-NR {cameraName} Output", outputWidth, outputHeight,
                     GraphicsFormat.R16G16B16A16_SFloat);
 
                 ColorHandle = RTHandles.Alloc(ColorRt);
@@ -155,8 +161,8 @@ namespace UnityRhi.DlssNr.Hdrp
                     Depth = _depth,
                     InputWidth = Width,
                     InputHeight = Height,
-                    OutputWidth = Width,
-                    OutputHeight = Height,
+                    OutputWidth = this.OutputWidth,
+                    OutputHeight = this.OutputHeight,
                     MotionVectorScaleX = parameters.MotionScaleX,
                     MotionVectorScaleY = parameters.MotionScaleY,
                     Intensity = parameters.Intensity,
@@ -167,7 +173,7 @@ namespace UnityRhi.DlssNr.Hdrp
                     Reset = parameters.Reset,
                     UseAutoMask = parameters.UseAutoMask,
                     UiCorrection = parameters.UiCorrection,
-                    Upscaling = false,
+                    Upscaling = this.OutputWidth != Width || this.OutputHeight != Height,
                     Preset = parameters.Preset,
                     Style = parameters.Style,
                 });
