@@ -41,6 +41,14 @@ namespace UnityRhi.DlssNr.Hdrp
         private readonly Dictionary<Camera, DlssNrCameraContext> _contexts = new();
         private bool _warned;
 
+        // Last Game-camera dimensions observed by the Volume inspector. These
+        // are diagnostic values only and are updated when Render executes.
+        public static int LastInputWidth { get; private set; }
+        public static int LastInputHeight { get; private set; }
+        public static int LastOutputWidth { get; private set; }
+        public static int LastOutputHeight { get; private set; }
+        public static string LastCameraName { get; private set; }
+
         public override CustomPostProcessInjectionPoint injectionPoint => CustomPostProcessInjectionPoint.AfterPostProcess;
 
         // Keep the component visible in the Volume inspector for SceneView. The
@@ -146,6 +154,12 @@ namespace UnityRhi.DlssNr.Hdrp
                 outputWidth = width;
                 outputHeight = height;
             }
+
+            LastInputWidth = width;
+            LastInputHeight = height;
+            LastOutputWidth = outputWidth;
+            LastOutputHeight = outputHeight;
+            LastCameraName = camera.camera.name;
 
             DlssNrCameraContext context;
             try
