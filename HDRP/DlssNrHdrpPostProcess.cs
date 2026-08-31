@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
+using UnityEngine.XR;
 
 namespace UnityRhi.DlssNr.Hdrp
 {
@@ -80,6 +81,17 @@ namespace UnityRhi.DlssNr.Hdrp
             {
                 if (source != null && destination != null)
                     HDUtils.BlitCameraTexture(cmd, source, destination);
+                return;
+            }
+
+            // SteamVR enables XR stereo on the existing Game camera at runtime.
+            // The current Feature 18 path accepts ordinary single-view 2D
+            // resources only; applying it to XR eye textures (often array or
+            // per-eye targets such as 2016x2160) produces stretched output.
+            // Leave XR frames untouched until an explicit multiview path exists.
+            if (XRSettings.enabled || camera.camera.stereoEnabled)
+            {
+                HDUtils.BlitCameraTexture(cmd, source, destination);
                 return;
             }
 
