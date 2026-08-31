@@ -8,8 +8,8 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 ### 功能
 
 后处理从 HDRP 相机获取光栅颜色、深度和运动向量，交给 UnityRHI DLSS-NR 原生运行时，
-再写回 HDRP 后处理链。当前版本按相机实际尺寸进行 1:1 输出，用于神经图像增强和
-时域重建。它不是 DLSS Super Resolution、Frame Generation 或 Ray Reconstruction，
+再写回 HDRP 后处理链。当前版本按相机实际渲染尺寸读取输入，并可按目标输出尺寸执行
+放大，用于神经图像增强和时域重建。它不是 DLSS Super Resolution、Frame Generation 或 Ray Reconstruction，
 也不会生成另一张光线重构图。
 
 ### 效果对比
@@ -121,8 +121,9 @@ HDRP Custom Post Process Volume. It does not require a Renderer Feature or Custo
 
 The effect reads the raster camera color, depth, and motion-vector buffers, sends them to
 the UnityRHI DLSS-NR runtime, and writes the result into HDRP's post-process chain. The
-current implementation is 1:1 at the camera's actual resolution. It is neural enhancement
-and temporal reconstruction, not DLSS Super Resolution, Frame Generation, or Ray Reconstruction.
+current implementation reads the camera's actual render resolution and can upscale to the
+target output resolution. It is neural enhancement and temporal reconstruction, not DLSS Super
+Resolution, Frame Generation, or Ray Reconstruction.
 
 Example comparison (DLSS-NR on/off):
 
