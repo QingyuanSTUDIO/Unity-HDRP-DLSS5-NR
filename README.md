@@ -1,109 +1,137 @@
 # Unity HDRP DLSS-NR
 
-An HDRP-native integration of NVIDIA DLSS Neural Rendering for Unity 6. It is
-implemented as a regular HDRP Volume custom post-process and does not require a
-Renderer Feature or a Custom Pass.
+## 中文说明
 
-## What It Does
+这是一个面向 Unity HDRP 的 NVIDIA DLSS Neural Rendering 集成。它以 HDRP 正式
+Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Custom Pass。
 
-The effect processes the current HDRP camera image at the same resolution. It
-uses the raster camera color, depth, and motion-vector buffers, then sends them
-to the UnityRHI DLSS-NR runtime. The result is written back into HDRP's post-
-process chain.
+### 功能
 
-This implementation is intended for neural image enhancement and temporal
-reconstruction. It is not DLSS Super Resolution, Frame Generation, or Ray
-Reconstruction.
+后处理从 HDRP 相机获取光栅颜色、深度和运动向量，交给 UnityRHI DLSS-NR 原生运行时，
+再写回 HDRP 后处理链。当前版本按相机实际尺寸进行 1:1 输出，用于神经图像增强和
+时域重建。它不是 DLSS Super Resolution、Frame Generation 或 Ray Reconstruction，
+也不会生成另一张光线重构图。
 
-## Requirements
+### 前置依赖
 
-- Unity 6.3 or newer
-- HDRP 17 or newer
-- RenderGraph-enabled HDRP
-- Windows x64 with Direct3D 12
-- A supported NVIDIA GPU and driver
-- The `top.kuanmi.unityrhi` runtime package
-- The matching embedded `top.kuanmi.unityrhi.native` package
+| 依赖 | 要求 | 地址 |
+| --- | --- | --- |
+| Unity | Unity 6.3 或更高版本 | [Unity 版本下载](https://unity.com/releases/editor/archive) |
+| HDRP | HDRP 17 或更高版本，启用 RenderGraph | [HDRP 文档](https://docs.unity3d.com/6000.3/Documentation/Manual/com.unity.render-pipelines.high-definition.html) |
+| UnityDLSSNR | 上游 UnityRHI managed/native 包，本仓库依赖它 | [Kuan-Mi/UnityDLSSNR](https://github.com/Kuan-Mi/UnityDLSSNR) |
+| Managed 包 | `top.kuanmi.unityrhi` | [最新 Release](https://github.com/Kuan-Mi/UnityDLSSNR/releases/latest) |
+| Native 包 | `top.kuanmi.unityrhi.native`，必须嵌入项目 | [native 1.0.0 下载](https://github.com/Kuan-Mi/UnityDLSSNR/releases/download/v1.0.0/top.kuanmi.unityrhi.native-1.0.0.zip) |
+| NVIDIA | 支持 DLSS-NR 的 NVIDIA GPU、驱动和 `nvngx_dlssnr.dll` | [NVIDIA DLSS](https://developer.nvidia.com/dlss) |
 
-The native package must be present under the project's `Packages` directory so
-its D3D12/NGX initialization runs before the graphics device is created.
+平台仅支持 Windows x64 + Direct3D 12；不支持 D3D11、macOS、Linux 或非 NVIDIA 设备。
 
-## Installation
+### 安装
 
-1. Copy this repository's `Core`, `HDRP`, and `Shaders` folders into the Unity
-   project's `Assets/Plugins/DLSS 5` directory.
-2. Install the UnityRHI managed and native packages in `Packages`.
-3. Set the graphics API to Direct3D 12 and restart the Unity Editor.
-4. Open **Edit > Project Settings > Graphics > HDRP Global Settings**.
-5. Add `UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess` to **Custom Post Process
-   Orders > After Post Process**.
-6. Create or select a Volume Profile and choose **Add Override > Post-processing
-   > DLSS Neural Rendering**.
-7. Enable the component and its **Enabled** override.
+1. 将本仓库的 `Core`、`HDRP`、`Shaders` 复制到目标项目的 `Assets/Plugins/DLSS 5`。
+2. 安装 `top.kuanmi.unityrhi` managed 包。
+3. 下载并解压 native 包到：
 
-The camera must have HDRP depth and motion vectors enabled. No dynamic
-resolution setting is required; the current implementation uses a 1:1 output
-size.
+   ```text
+   Packages/top.kuanmi.unityrhi.native
+   ```
 
-## Volume Parameters
+   确认文件存在：
 
-- **Preset** and **Style** select the neural rendering configuration.
-- **Intensity**, **Local Tone Strength**, and **Local Structure Strength** control
-  the enhancement strength.
-- **Skin Structure Strength** adjusts the skin-detail response.
-- **Motion Vector Scale** controls motion-vector conversion to pixels.
-- **Camera Cut Distance** and **Camera Cut Angle** trigger temporal history reset.
-- **Use Auto Mask** and **UI Correction** are forwarded to DLSS-NR when enabled.
-- **Debug Mode** can visualize motion vectors, motion magnitude, device depth, or
-  linear eye depth before native evaluation.
+   ```text
+   Packages/top.kuanmi.unityrhi.native/Plugins/x86_64/nvngx_dlssnr.dll
+   ```
 
-## Camera Behavior
+   native 包必须位于目标项目 `Packages` 下，不能直接引用外部 `Build` 文件夹；它需要
+   在 Unity 创建 D3D12 设备前完成预加载。
+4. 在 **Edit > Project Settings > Player > Other Settings** 设置 **Direct3D 12**，
+   重启 Unity。
+5. 在 **Edit > Project Settings > Graphics > HDRP Global Settings** 的
+   **Custom Post Process Orders > After Post Process** 添加：
 
-Game cameras use the full DLSS-NR path. SceneView is passed through to the
-original HDRP image because editor cameras do not provide a stable runtime
-temporal history and may produce invalid or gray output with feature 18.
+   ```text
+   UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess
+   ```
 
-Each camera owns an independent native context and temporal history. Changing
-resolution, camera cuts, projection, or Volume settings resets that history.
+6. 在 Volume Profile 中选择 **Add Override > Post-processing > DLSS Neural Rendering**，
+   勾选 **Enabled** override 并打开。确认 HDRP 相机启用 Depth 和 Motion Vectors。
 
-## Current Input Contract
+本实现不要求开启动态分辨率，输入和输出均为当前相机实际尺寸。
 
-The native dispatch receives:
+### 参数与相机行为
 
-```text
-Color
-Depth
-MotionVectors
-InputWidth / InputHeight
-OutputWidth / OutputHeight
-MotionVectorScaleX / MotionVectorScaleY
-DepthInverted
-Reset
-Preset / Style
-Intensity and structure parameters
-```
+- **Preset / Style**：神经渲染配置。
+- **Intensity、Local Tone Strength、Local Structure Strength、Skin Structure Strength**：增强强度。
+- **Motion Vector Scale**：运动向量到像素单位的换算。
+- **Camera Cut Distance / Angle**：触发时域历史重置。
+- **Use Auto Mask / UI Correction**：转发给 DLSS-NR 的选项。
+- **Debug Mode**：查看运动向量、运动幅度、设备深度或线性眼空间深度。
 
-Normals, roughness, albedo, reactive masks, exposure textures, and ray-tracing
-buffers are not part of this DLSS-NR path.
+Game 相机使用完整 DLSS-NR 路径。SceneView 当前直接显示 HDRP 原图（pass-through），
+不执行 native DLSS-NR，以避免编辑器相机缺少稳定时域历史导致灰屏、黑屏或闪烁。因此
+SceneView 不保证显示与 Game 窗口相同的 DLSS 效果，请在 Game 窗口或构建版本确认。
 
-## Troubleshooting
+每个相机拥有独立 native context 和时域历史；分辨率、投影、相机切换或 Volume 参数
+变化时会自动重置历史。
 
-### Black or gray output
+### 输入接口
 
-- Confirm the project is using Direct3D 12, not Direct3D 11.
-- Confirm the native UnityRHI package is embedded under `Packages`.
-- Confirm the custom post-process type is registered under **After Post Process**.
-- Confirm the Volume is active and the `Enabled` override is checked.
-- Set **Debug Mode** to inspect the prepared depth and motion-vector inputs.
-- Disable the effect for SceneView; SceneView is intentionally pass-through.
+当前 native dispatch 接收 `Color`、`Depth`、`MotionVectors`、输入/输出宽高、运动向量
+缩放、深度反转、Reset、Preset/Style 以及强度参数。Normals、roughness、albedo、
+reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径。
 
-### Image appears cropped or zoomed
+### 排错
 
-Check the Game View aspect ratio and HDRP camera viewport. The integration uses
-HDRP's actual camera dimensions and RTHandle scale; do not replace those values
-with the backing texture dimensions.
+- 黑屏/灰屏：确认 D3D12、native 包路径、DLL 路径、Global Settings 注册和 Volume Enabled。
+- Console 出现 URP `Core.hlsl`、`TextureDimension` 或 D3D11 错误：说明仍有旧 URP 文件或使用了错误图形 API。
+- 画面裁切/偏移：检查 Game View 宽高比、相机 viewport 和 RTHandle scale，不要使用 backing texture 尺寸。
+- 没有明显效果：DLSS-NR 是 1:1 增强，不是超分辨率；请在高频细节、运动和 Debug Mode 下比较。
 
-## License
+### 相关地址
 
-This repository contains the Unity integration layer. NVIDIA DLSS/NGX runtime
-components remain subject to NVIDIA's license and redistribution terms.
+- [Unity Custom Post Process](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/Custom-Post-Process.html)
+- [Unity Volume 系统](https://docs.unity3d.com/Manual/Volumes.html)
+- [NVIDIA NGX](https://developer.nvidia.com/rtx/ngx)
+- [本项目仓库](https://github.com/QingyuanSTUDIO/Unity-HDRP-DLSS5-NR)
+
+### 许可证
+
+本仓库包含 Unity HDRP 集成层。UnityRHI、DLSS/NGX native runtime、`nvngx_dlssnr.dll`
+及 NVIDIA 组件受各自作者和 NVIDIA 许可、分发条款约束。
+
+## English
+
+This repository integrates NVIDIA DLSS Neural Rendering into Unity HDRP as a regular
+HDRP Custom Post Process Volume. It does not require a Renderer Feature or Custom Pass.
+
+The effect reads the raster camera color, depth, and motion-vector buffers, sends them to
+the UnityRHI DLSS-NR runtime, and writes the result into HDRP's post-process chain. The
+current implementation is 1:1 at the camera's actual resolution. It is neural enhancement
+and temporal reconstruction, not DLSS Super Resolution, Frame Generation, or Ray Reconstruction.
+
+### Requirements and links
+
+- Unity 6.3+: [Unity archive](https://unity.com/releases/editor/archive)
+- HDRP 17+ with RenderGraph: [HDRP manual](https://docs.unity3d.com/6000.3/Documentation/Manual/com.unity.render-pipelines.high-definition.html)
+- Upstream managed/native dependency: [Kuan-Mi/UnityDLSSNR](https://github.com/Kuan-Mi/UnityDLSSNR)
+- Managed package: [latest release](https://github.com/Kuan-Mi/UnityDLSSNR/releases/latest)
+- Native package: [top.kuanmi.unityrhi.native 1.0.0](https://github.com/Kuan-Mi/UnityDLSSNR/releases/download/v1.0.0/top.kuanmi.unityrhi.native-1.0.0.zip)
+- NVIDIA DLSS runtime information: [NVIDIA DLSS](https://developer.nvidia.com/dlss)
+- Platform: Windows x64, Direct3D 12, supported NVIDIA GPU/driver.
+
+### Installation
+
+Copy `Core`, `HDRP`, and `Shaders` into `Assets/Plugins/DLSS 5`; install
+`top.kuanmi.unityrhi`; and embed the native package at
+`Packages/top.kuanmi.unityrhi.native`. Verify
+`Packages/top.kuanmi.unityrhi.native/Plugins/x86_64/nvngx_dlssnr.dll` exists.
+Use Direct3D 12 and restart Unity. In **HDRP Global Settings > Custom Post Process Orders >
+After Post Process**, add `UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the **DLSS Neural
+Rendering** Volume override and enable its **Enabled** override. HDRP depth and motion vectors
+must be available. Dynamic resolution is not required.
+
+Game cameras run the full path. SceneView is intentionally pass-through because editor cameras
+do not provide stable runtime temporal history. Check the Game view or a player build for the
+actual effect. Common failures are wrong graphics API, a non-embedded native package, missing
+DLL, an unregistered custom post process, or a disabled Volume override.
+
+NVIDIA runtime components remain subject to NVIDIA licensing and redistribution terms.
