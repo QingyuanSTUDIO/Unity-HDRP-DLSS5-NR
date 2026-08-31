@@ -83,17 +83,6 @@ namespace UnityRhi.DlssNr.Hdrp
                 return;
             }
 
-            // SteamVR enables XR stereo on the existing Game camera at runtime.
-            // The current Feature 18 path accepts ordinary single-view 2D
-            // resources only; applying it to XR eye textures (often array or
-            // per-eye targets such as 2016x2160) produces stretched output.
-            // Leave XR frames untouched until an explicit multiview path exists.
-            if (IsXrFrame(camera.camera, source))
-            {
-                HDUtils.BlitCameraTexture(cmd, source, destination);
-                return;
-            }
-
             // SceneView has editor-only depth/motion resources and no stable
             // frame-to-frame presentation history. Running feature 18 here can
             // produce a gray output even though the debug passes render correctly.
@@ -250,21 +239,6 @@ namespace UnityRhi.DlssNr.Hdrp
                 if (!_warned) { _warned = true; Debug.LogError($"[UnityRHI.DLSS-NR] HDRP post process failed: {exception}"); }
                 HDUtils.BlitCameraTexture(cmd, source, destination);
             }
-        }
-
-        private static bool IsXrFrame(Camera camera, RTHandle source)
-        {
-            if (camera == null) return false;
-            // Do not use XRSettings.enabled/isDeviceActive here. SteamVR can be
-            // active solely for tracker input while the presentation camera is
-            // still a normal mono camera and must continue to run DLSS-NR.
-            if (camera.stereoEnabled)
-                return true;
-
-            // OpenXR/SteamVR may expose XR as a texture array without updating
-            // XRSettings.enabled in the editor Game view.
-            return source != null && source.rt != null &&
-                source.rt.dimension == UnityEngine.Rendering.TextureDimension.Tex2DArray;
         }
 
         public override void Cleanup()
