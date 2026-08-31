@@ -89,7 +89,7 @@ namespace UnityRhi.DlssNr.Hdrp
             // resources only; applying it to XR eye textures (often array or
             // per-eye targets such as 2016x2160) produces stretched output.
             // Leave XR frames untouched until an explicit multiview path exists.
-            if (XRSettings.enabled || camera.camera.stereoEnabled)
+            if (IsXrFrame(camera.camera, source))
             {
                 HDUtils.BlitCameraTexture(cmd, source, destination);
                 return;
@@ -251,6 +251,18 @@ namespace UnityRhi.DlssNr.Hdrp
                 if (!_warned) { _warned = true; Debug.LogError($"[UnityRHI.DLSS-NR] HDRP post process failed: {exception}"); }
                 HDUtils.BlitCameraTexture(cmd, source, destination);
             }
+        }
+
+        private static bool IsXrFrame(Camera camera, RTHandle source)
+        {
+            if (camera == null) return false;
+            if (camera.stereoEnabled || XRSettings.enabled || XRSettings.isDeviceActive)
+                return true;
+
+            // OpenXR/SteamVR may expose XR as a texture array without updating
+            // XRSettings.enabled in the editor Game view.
+            return source != null && source.rt != null &&
+                source.rt.dimension == UnityEngine.Rendering.TextureDimension.Tex2DArray;
         }
 
         public override void Cleanup()
