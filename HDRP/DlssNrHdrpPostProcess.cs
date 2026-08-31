@@ -132,6 +132,21 @@ namespace UnityRhi.DlssNr.Hdrp
                 outputHeight = height;
             }
 
+            // The current native Feature 18 contract hardcodes its upscaling
+            // ratio to 0.5 (2x output). Arbitrary ratios such as 1620x2880 to
+            // 2160x3840 (1.333x) return BAD00005 from Evaluate. Keep NR at 1:1
+            // for those targets; HDRP's built-in DLSS remains responsible for
+            // the final non-2x reconstruction.
+            float scaleX = (float)outputWidth / width;
+            float scaleY = (float)outputHeight / height;
+            bool nativeUpscalingSupported = Mathf.Abs(scaleX - 2f) < 0.01f &&
+                Mathf.Abs(scaleY - 2f) < 0.01f;
+            if (!nativeUpscalingSupported)
+            {
+                outputWidth = width;
+                outputHeight = height;
+            }
+
             DlssNrCameraContext context;
             try
             {
