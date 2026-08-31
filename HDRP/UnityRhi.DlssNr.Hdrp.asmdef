@@ -1,0 +1,25 @@
+{
+  "name": "UnityRhi.DlssNr.Hdrp",
+  "rootNamespace": "UnityRhi.DlssNr.Hdrp",
+  "references": [
+    "UnityRhi.Runtime",
+    "UnityRhi.DlssNr.Core",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.HighDefinition.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [
+    {
+      "name": "com.unity.render-pipelines.high-definition",
+      "expression": "17.0.0",
+      "define": "UNITYRHI_DLSSNR_HDRP"
+    }
+  ],
+  "noEngineReferences": false
+}

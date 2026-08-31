@@ -1,0 +1,17 @@
+{
+  "name": "UnityRhi.DlssNr.Core",
+  "rootNamespace": "UnityRhi.DlssNr.Hdrp",
+  "references": [
+    "UnityRhi.Runtime",
+    "Unity.RenderPipelines.Core.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
