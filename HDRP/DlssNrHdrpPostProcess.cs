@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
-using UnityEngine.XR;
 
 namespace UnityRhi.DlssNr.Hdrp
 {
@@ -256,7 +255,10 @@ namespace UnityRhi.DlssNr.Hdrp
         private static bool IsXrFrame(Camera camera, RTHandle source)
         {
             if (camera == null) return false;
-            if (camera.stereoEnabled || XRSettings.enabled || XRSettings.isDeviceActive)
+            // Do not use XRSettings.enabled/isDeviceActive here. SteamVR can be
+            // active solely for tracker input while the presentation camera is
+            // still a normal mono camera and must continue to run DLSS-NR.
+            if (camera.stereoEnabled)
                 return true;
 
             // OpenXR/SteamVR may expose XR as a texture array without updating
