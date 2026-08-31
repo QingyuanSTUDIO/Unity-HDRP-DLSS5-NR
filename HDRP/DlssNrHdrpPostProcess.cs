@@ -47,6 +47,8 @@ namespace UnityRhi.DlssNr.Hdrp
         public static int LastInputHeight { get; private set; }
         public static int LastOutputWidth { get; private set; }
         public static int LastOutputHeight { get; private set; }
+        public static int LastGameTargetWidth { get; private set; }
+        public static int LastGameTargetHeight { get; private set; }
         public static string LastCameraName { get; private set; }
 
         public override CustomPostProcessInjectionPoint injectionPoint => CustomPostProcessInjectionPoint.AfterPostProcess;
@@ -139,6 +141,8 @@ namespace UnityRhi.DlssNr.Hdrp
                 outputWidth = width;
                 outputHeight = height;
             }
+            LastGameTargetWidth = outputWidth;
+            LastGameTargetHeight = outputHeight;
 
             // The current native Feature 18 contract hardcodes its upscaling
             // ratio to 0.5 (2x output). Arbitrary ratios such as 1620x2880 to
