@@ -99,7 +99,7 @@ reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径�
   native 包路径、合法获取的原生运行时、Global Settings 注册和 Volume Enabled。
 - Console 出现 URP `Core.hlsl`、`TextureDimension` 或 D3D11 错误：说明仍有旧 URP 文件或使用了错误图形 API。
 - 画面裁切/偏移：检查 Game View 宽高比、相机 viewport 和 RTHandle scale，不要使用 backing texture 尺寸。
-- 没有明显效果：DLSS-NR 是 1:1 增强，不是超分辨率；请在高频细节、运动和 Debug Mode 下比较。
+- 没有明显效果：DLSS-NR 的增强和放大效果取决于相机 DLSS 输入/输出比例；请在高频细节、运动和 Debug Mode 下比较。
 
 ### 相关地址
 
