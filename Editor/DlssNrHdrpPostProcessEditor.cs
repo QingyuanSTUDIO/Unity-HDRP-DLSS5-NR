@@ -21,7 +21,9 @@ namespace UnityRhi.DlssNr.Hdrp.Editor
                 EditorGUILayout.LabelField(
                     "Input", $"{DlssNrHdrpPostProcess.LastInputWidth} x {DlssNrHdrpPostProcess.LastInputHeight}");
                 EditorGUILayout.LabelField(
-                    "Output", $"{DlssNrHdrpPostProcess.LastOutputWidth} x {DlssNrHdrpPostProcess.LastOutputHeight}");
+                    "DLSS-NR Output", $"{DlssNrHdrpPostProcess.LastOutputWidth} x {DlssNrHdrpPostProcess.LastOutputHeight}");
+                EditorGUILayout.LabelField(
+                    "Game Target", $"{DlssNrHdrpPostProcess.LastGameTargetWidth} x {DlssNrHdrpPostProcess.LastGameTargetHeight}");
                 EditorGUILayout.LabelField(
                     "Scale", $"{(float)DlssNrHdrpPostProcess.LastOutputWidth / DlssNrHdrpPostProcess.LastInputWidth:0.###}x");
                 Repaint();
