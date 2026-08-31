@@ -30,6 +30,10 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 | Unity NVIDIA DLSS | 必须安装项目使用的 Unity HDRP NVIDIA DLSS 包/插件，并在相机上启用 DLSS | [HDRP DLSS 文档](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/DLSS.html) |
 | NVIDIA | 支持 DLSS-NR 的 NVIDIA GPU、驱动和匹配的原生运行时 | [NVIDIA DLSS](https://developer.nvidia.com/dlss) |
 
+Unity Package Manager 中应能看到已安装的 **NVIDIA** 模块：
+
+![Unity Package Manager NVIDIA 模块](Docs/unity-package-manager-nvidia.png)
+
 平台仅支持 Windows x64 + Direct3D 12；不支持 D3D11、macOS、Linux 或非 NVIDIA 设备。
 
 ### 安装
@@ -134,6 +138,10 @@ Example comparison (DLSS-NR on/off):
 - Unity HDRP NVIDIA DLSS package/plugin must be installed and DLSS enabled on the camera: [HDRP DLSS manual](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/DLSS.html)
 - NVIDIA DLSS runtime information: [NVIDIA DLSS](https://developer.nvidia.com/dlss)
 - Platform: Windows x64, Direct3D 12, supported NVIDIA GPU/driver.
+
+The Unity Package Manager should show the installed **NVIDIA** module:
+
+![Unity Package Manager NVIDIA module](Docs/unity-package-manager-nvidia.png)
 
 ### Installation
 
