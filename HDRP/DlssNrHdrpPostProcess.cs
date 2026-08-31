@@ -117,62 +117,21 @@ namespace UnityRhi.DlssNr.Hdrp
                 return;
             }
 
-            // HDCamera.actualWidth/actualHeight are the dynamic-resolution input
-            // dimensions. The camera pixel dimensions represent the native target
-            // size that DLSS-NR should reconstruct for (for example 1620x2880 to
-            // 2160x3840 in a portrait 4K target).
-            int outputWidth = camera.camera.pixelWidth;
-            int outputHeight = camera.camera.pixelHeight;
-            if (outputWidth <= 0 || outputHeight <= 0)
-            {
-                Vector2Int destinationViewport = destination.rtHandleProperties.currentViewportSize;
-                outputWidth = destinationViewport.x;
-                outputHeight = destinationViewport.y;
-            }
-            if (outputWidth <= 0 || outputHeight <= 0)
-            {
-                outputWidth = destination.rt.width;
-                outputHeight = destination.rt.height;
-            }
-            if (outputWidth < width || outputHeight < height)
-            {
-                // Never accidentally request a downscale when HDRP reports a
-                // scaled destination. DLSS-NR is used here as an upscaler.
-                outputWidth = width;
-                outputHeight = height;
-            }
-            LastGameTargetWidth = outputWidth;
-            LastGameTargetHeight = outputHeight;
-
-            // The current native Feature 18 contract hardcodes its upscaling
-            // ratio to 0.5 (2x output). Arbitrary ratios such as 1620x2880 to
-            // 2160x3840 (1.333x) return BAD00005 from Evaluate. Keep NR at 1:1
-            // for those targets; HDRP's built-in DLSS remains responsible for
-            // the final non-2x reconstruction.
-            float scaleX = (float)outputWidth / width;
-            float scaleY = (float)outputHeight / height;
-            bool nativeUpscalingSupported = Mathf.Abs(scaleX - 2f) < 0.01f &&
-                Mathf.Abs(scaleY - 2f) < 0.01f;
-            if (!nativeUpscalingSupported)
-            {
-                outputWidth = width;
-                outputHeight = height;
-            }
-
             LastInputWidth = width;
             LastInputHeight = height;
-            LastOutputWidth = outputWidth;
-            LastOutputHeight = outputHeight;
+            LastOutputWidth = width;
+            LastOutputHeight = height;
+            LastGameTargetWidth = camera.camera.pixelWidth > 0 ? camera.camera.pixelWidth : width;
+            LastGameTargetHeight = camera.camera.pixelHeight > 0 ? camera.camera.pixelHeight : height;
             LastCameraName = camera.camera.name;
 
             DlssNrCameraContext context;
             try
             {
-                if (!_contexts.TryGetValue(camera.camera, out context) || context.Width != width || context.Height != height ||
-                    context.OutputWidth != outputWidth || context.OutputHeight != outputHeight)
+                if (!_contexts.TryGetValue(camera.camera, out context) || context.Width != width || context.Height != height)
                 {
                     context?.Dispose();
-                    context = new DlssNrCameraContext(width, height, outputWidth, outputHeight, camera.camera.name);
+                    context = new DlssNrCameraContext(width, height, camera.camera.name);
                     _contexts[camera.camera] = context;
                 }
 
@@ -221,9 +180,9 @@ namespace UnityRhi.DlssNr.Hdrp
                 // pooled reference/rotation scale can make the result appear zoomed.
                 RTHandleProperties outputProps = context.OutputHandle.rtHandleProperties;
                 outputProps.rtHandleScale = Vector4.one;
-                outputProps.currentRenderTargetSize = new Vector2Int(outputWidth, outputHeight);
-                outputProps.previousRenderTargetSize = new Vector2Int(outputWidth, outputHeight);
-                outputProps.currentViewportSize = new Vector2Int(outputWidth, outputHeight);
+                outputProps.currentRenderTargetSize = new Vector2Int(width, height);
+                outputProps.previousRenderTargetSize = new Vector2Int(width, height);
+                outputProps.currentViewportSize = new Vector2Int(width, height);
                 context.OutputHandle.SetCustomHandleProperties(outputProps);
                 try
                 {
