@@ -27,6 +27,7 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 | UnityDLSSNR | 上游 UnityRHI managed/native 包，本仓库依赖它 | [Kuan-Mi/UnityDLSSNR](https://github.com/Kuan-Mi/UnityDLSSNR) |
 | Managed 包 | `top.kuanmi.unityrhi` | [最新 Release](https://github.com/Kuan-Mi/UnityDLSSNR/releases/latest) |
 | Native 包 | `top.kuanmi.unityrhi.native`，必须嵌入项目 | [native 1.0.0 下载](https://github.com/Kuan-Mi/UnityDLSSNR/releases/download/v1.0.0/top.kuanmi.unityrhi.native-1.0.0.zip) |
+| Unity NVIDIA DLSS | 必须安装项目使用的 Unity HDRP NVIDIA DLSS 包/插件，并在相机上启用 DLSS | [HDRP DLSS 文档](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/DLSS.html) |
 | NVIDIA | 支持 DLSS-NR 的 NVIDIA GPU、驱动和匹配的原生运行时 | [NVIDIA DLSS](https://developer.nvidia.com/dlss) |
 
 平台仅支持 Windows x64 + Direct3D 12；不支持 D3D11、macOS、Linux 或非 NVIDIA 设备。
@@ -46,21 +47,25 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
    的说明放入该包的插件目录。本仓库不包含、不分发也不提供泄露的 NVIDIA 二进制文件。
 4. 在 **Edit > Project Settings > Player > Other Settings** 设置 **Direct3D 12**，
    重启 Unity。
-5. 在 **Edit > Project Settings > Graphics > HDRP Global Settings** 的
+5. 确认项目已安装并启用 Unity HDRP 的 NVIDIA DLSS 包/插件，并在使用的相机上勾选
+   **Enable DLSS**（或项目对应版本中的同名 DLSS 开关）。这是本后处理的必要前置；
+   如果相机没有启用 Unity/NVIDIA DLSS，后处理可能输出黑屏。
+6. 在 **Edit > Project Settings > Graphics > HDRP Global Settings** 的
    **Custom Post Process Orders > After Post Process** 添加：
 
    ```text
    UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess
    ```
 
-6. 在 Volume Profile 中选择 **Add Override > Post-processing > DLSS Neural Rendering**，
+7. 在 Volume Profile 中选择 **Add Override > Post-processing > DLSS Neural Rendering**，
    勾选 **Enabled** override 并打开。确认 HDRP 相机启用 Depth 和 Motion Vectors。
 
 Volume 面板示例：
 
 ![DLSS-NR Volume 后处理面板](Docs/dlss5-volume-panel.png)
 
-本实现不要求开启动态分辨率，输入和输出均为当前相机实际尺寸。
+本实现依赖相机上的 Unity/NVIDIA DLSS。请按项目需求配置动态分辨率；输入和输出尺寸
+由 HDRP 相机及其 DLSS 设置共同决定。
 
 ### 参数与相机行为
 
@@ -86,7 +91,8 @@ reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径�
 
 ### 排错
 
-- 黑屏/灰屏：确认 D3D12、native 包路径、合法获取的原生运行时、Global Settings 注册和 Volume Enabled。
+- 黑屏/灰屏：确认 D3D12、Unity/NVIDIA DLSS 包已安装、相机上的 **Enable DLSS** 已开启、
+  native 包路径、合法获取的原生运行时、Global Settings 注册和 Volume Enabled。
 - Console 出现 URP `Core.hlsl`、`TextureDimension` 或 D3D11 错误：说明仍有旧 URP 文件或使用了错误图形 API。
 - 画面裁切/偏移：检查 Game View 宽高比、相机 viewport 和 RTHandle scale，不要使用 backing texture 尺寸。
 - 没有明显效果：DLSS-NR 是 1:1 增强，不是超分辨率；请在高频细节、运动和 Debug Mode 下比较。
@@ -125,6 +131,7 @@ Example comparison (DLSS-NR on/off):
 - Upstream managed/native dependency: [Kuan-Mi/UnityDLSSNR](https://github.com/Kuan-Mi/UnityDLSSNR)
 - Managed package: [latest release](https://github.com/Kuan-Mi/UnityDLSSNR/releases/latest)
 - Native package: [top.kuanmi.unityrhi.native 1.0.0](https://github.com/Kuan-Mi/UnityDLSSNR/releases/download/v1.0.0/top.kuanmi.unityrhi.native-1.0.0.zip)
+- Unity HDRP NVIDIA DLSS package/plugin must be installed and DLSS enabled on the camera: [HDRP DLSS manual](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/DLSS.html)
 - NVIDIA DLSS runtime information: [NVIDIA DLSS](https://developer.nvidia.com/dlss)
 - Platform: Windows x64, Direct3D 12, supported NVIDIA GPU/driver.
 
@@ -136,9 +143,14 @@ Copy `Core`, `HDRP`, and `Shaders` into `Assets/Plugins/DLSS 5`; install
 separately from a legitimate source and place it according to the upstream package
 instructions. This repository does not include, redistribute, or link to leaked binaries.
 Use Direct3D 12 and restart Unity. In **HDRP Global Settings > Custom Post Process Orders >
-After Post Process**, add `UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the **DLSS Neural
-Rendering** Volume override and enable its **Enabled** override. HDRP depth and motion vectors
-must be available. Dynamic resolution is not required.
+Before registering this post process, install and enable the Unity HDRP NVIDIA DLSS package/plugin
+and check **Enable DLSS** on the camera (the exact label may vary by Unity/HDRP version). This is
+required by the integration; without camera DLSS enabled, the result may be black. In **HDRP
+Global Settings > Custom Post Process Orders > After Post Process**, add
+`UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the **DLSS Neural Rendering** Volume override
+and enable its **Enabled** override. HDRP depth and motion vectors must be available. Configure
+dynamic resolution according to the camera DLSS settings; input and output dimensions are derived
+from HDRP camera and DLSS configuration.
 
 Example Volume panel:
 
@@ -146,8 +158,8 @@ Example Volume panel:
 
 Game cameras run the full path. SceneView is intentionally pass-through because editor cameras
 do not provide stable runtime temporal history. Check the Game view or a player build for the
-actual effect. Common failures are wrong graphics API, a non-embedded native package, missing
-DLL, an unregistered custom post process, or a disabled Volume override.
+actual effect. Common failures are wrong graphics API, camera DLSS disabled, a non-embedded native
+package, missing runtime, an unregistered custom post process, or a disabled Volume override.
 
 The NVIDIA native runtime must be obtained separately through a legitimate source. This
 repository does not include, redistribute, or link to leaked NVIDIA binaries. NVIDIA runtime
