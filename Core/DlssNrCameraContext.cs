@@ -264,8 +264,18 @@ namespace UnityRhi.DlssNr.Hdrp
             {
                 int hash = (int)settings.Preset;
                 hash = hash * 397 ^ (int)settings.Style;
+                // All network-output controls participate in the temporal
+                // history contract. Changing any of these values must start
+                // a fresh accumulation; otherwise old history is blended with
+                // a differently configured network for several frames.
+                hash = hash * 397 ^ settings.Intensity.GetHashCode();
+                hash = hash * 397 ^ settings.LocalToneStrength.GetHashCode();
+                hash = hash * 397 ^ settings.LocalStructureStrength.GetHashCode();
+                hash = hash * 397 ^ settings.SkinStructureStrength.GetHashCode();
                 hash = hash * 397 ^ settings.MotionVectorScale.x.GetHashCode();
                 hash = hash * 397 ^ settings.MotionVectorScale.y.GetHashCode();
+                hash = hash * 397 ^ settings.CameraCutDistance.GetHashCode();
+                hash = hash * 397 ^ settings.CameraCutAngle.GetHashCode();
                 hash = hash * 397 ^ (settings.UseAutoMask ? 1 : 0);
                 hash = hash * 397 ^ (settings.UiCorrection ? 1 : 0);
                 return hash;

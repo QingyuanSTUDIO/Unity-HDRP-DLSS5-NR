@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 
@@ -39,6 +40,7 @@ namespace UnityRhi.DlssNr.Hdrp
         private Material _prepareMaterial;
         private Material _debugMaterial;
         private readonly Dictionary<Camera, DlssNrCameraContext> _contexts = new();
+        private readonly List<Camera> _deadCameras = new();
         private bool _warned;
 
         // Last Game-camera dimensions observed by the Volume inspector. These
@@ -50,6 +52,12 @@ namespace UnityRhi.DlssNr.Hdrp
         public static int LastGameTargetWidth { get; private set; }
         public static int LastGameTargetHeight { get; private set; }
         public static string LastCameraName { get; private set; }
+        // Native results are sampled on the next Render call because the
+        // command stream executes asynchronously on Unity's render thread.
+        public static int LastNativeCreateResult { get; private set; }
+        public static int LastNativeEvaluateResult { get; private set; }
+        public static ulong LastDroppedCommandStreamCount { get; private set; }
+        public static int LastDeviceRemovedReason { get; private set; }
 
         public override CustomPostProcessInjectionPoint injectionPoint => CustomPostProcessInjectionPoint.AfterPostProcess;
 
@@ -93,6 +101,34 @@ namespace UnityRhi.DlssNr.Hdrp
                 return;
             }
 
+            // The current native path is a mono 2D 1x integration. Do not bind
+            // a stereo camera to a 2D temporal history owned by another eye.
+            if (camera.camera.stereoEnabled)
+            {
+                HDUtils.BlitCameraTexture(cmd, source, destination);
+                return;
+            }
+
+            // The native 1x path consumes SDR post-process color. HDR display
+            // encoding is performed by HDRP after this injection point, so do
+            // not run NR when the main display is actively in HDR mode.
+            if (HDROutputSettings.main != null && HDROutputSettings.main.available &&
+                HDROutputSettings.main.active)
+            {
+                HDUtils.BlitCameraTexture(cmd, source, destination);
+                return;
+            }
+
+            // Motion vectors are a required temporal input. HDRP exposes the
+            // resolved per-camera Frame Settings, which is the reliable C#
+            // gate available here; without this pass the global texture may be
+            // absent or a black fallback texture.
+            if (!camera.frameSettings.IsEnabled(FrameSettingsField.MotionVectors))
+            {
+                HDUtils.BlitCameraTexture(cmd, source, destination);
+                return;
+            }
+
             // In HDRP custom post processes, the source RTHandle can carry a
             // backing-resource viewport (for example 1920x1920) that is not the
             // camera image size (for example 1920x1080). DLSS dimensions must use
@@ -117,6 +153,24 @@ namespace UnityRhi.DlssNr.Hdrp
                 return;
             }
 
+            // Native feature 18 is a 1x pass in this integration. Reject
+            // invalid or unexpectedly scaled targets before touching the
+            // persistent resources; this keeps a transient HDRP target change
+            // from feeding stale/undefined data into the temporal runtime.
+            if (!source.rt.IsCreated() || !destination.rt.IsCreated() ||
+                source.rt.graphicsFormat == GraphicsFormat.None ||
+                destination.rt.graphicsFormat == GraphicsFormat.None ||
+                source.rt.width < width || source.rt.height < height ||
+                destination.rt.width < width || destination.rt.height < height ||
+                (source.rtHandleProperties.currentViewportSize.x > 0 &&
+                 source.rtHandleProperties.currentViewportSize.x < width) ||
+                (source.rtHandleProperties.currentViewportSize.y > 0 &&
+                 source.rtHandleProperties.currentViewportSize.y < height))
+            {
+                HDUtils.BlitCameraTexture(cmd, source, destination);
+                return;
+            }
+
             LastInputWidth = width;
             LastInputHeight = height;
             LastOutputWidth = width;
@@ -124,13 +178,18 @@ namespace UnityRhi.DlssNr.Hdrp
             LastGameTargetWidth = camera.camera.pixelWidth > 0 ? camera.camera.pixelWidth : width;
             LastGameTargetHeight = camera.camera.pixelHeight > 0 ? camera.camera.pixelHeight : height;
             LastCameraName = camera.camera.name;
+            LastNativeCreateResult = RhiCore.DlssNrLastCreateResult;
+            LastNativeEvaluateResult = RhiCore.DlssNrLastEvaluateResult;
+            LastDroppedCommandStreamCount = RhiCore.DroppedCommandStreamCount;
+            LastDeviceRemovedReason = RhiCore.DeviceRemovedReason;
 
-            DlssNrCameraContext context;
+            DlssNrCameraContext context = null;
             try
             {
+                PruneDeadCameras();
                 if (!_contexts.TryGetValue(camera.camera, out context) || context.Width != width || context.Height != height)
                 {
-                    context?.Dispose();
+                    DisposeContextSafely(context, "render-size change");
                     context = new DlssNrCameraContext(width, height, camera.camera.name);
                     _contexts[camera.camera] = context;
                 }
@@ -195,6 +254,10 @@ namespace UnityRhi.DlssNr.Hdrp
             }
             catch (Exception exception)
             {
+                // BeginFrame advances the temporal bookkeeping before native
+                // recording. A failed frame must invalidate that bookkeeping so
+                // the next successful frame starts from a clean history.
+                context?.ResetHistory();
                 if (!_warned) { _warned = true; Debug.LogError($"[UnityRHI.DLSS-NR] HDRP post process failed: {exception}"); }
                 HDUtils.BlitCameraTexture(cmd, source, destination);
             }
@@ -202,12 +265,57 @@ namespace UnityRhi.DlssNr.Hdrp
 
         public override void Cleanup()
         {
+            if (_contexts.Count > 0)
+                WaitForGpuBeforeRelease("custom post-process cleanup");
             foreach (DlssNrCameraContext context in _contexts.Values) context.Dispose();
             _contexts.Clear();
+            _deadCameras.Clear();
             CoreUtils.Destroy(_prepareMaterial);
             CoreUtils.Destroy(_debugMaterial);
             _prepareMaterial = null;
             _debugMaterial = null;
+        }
+
+        private void PruneDeadCameras()
+        {
+            _deadCameras.Clear();
+            foreach (KeyValuePair<Camera, DlssNrCameraContext> pair in _contexts)
+            {
+                if (pair.Key == null)
+                    _deadCameras.Add(pair.Key);
+            }
+
+            foreach (Camera deadCamera in _deadCameras)
+            {
+                if (_contexts.TryGetValue(deadCamera, out DlssNrCameraContext context))
+                    DisposeContextSafely(context, "camera destruction");
+                _contexts.Remove(deadCamera);
+            }
+            _deadCameras.Clear();
+        }
+
+        private void DisposeContextSafely(DlssNrCameraContext context, string reason)
+        {
+            if (context == null)
+                return;
+            WaitForGpuBeforeRelease(reason);
+            context.Dispose();
+        }
+
+        private void WaitForGpuBeforeRelease(string reason)
+        {
+            if (!RhiCore.IsD3D12Active)
+                return;
+            try
+            {
+                if (!RhiCore.WaitForGpuIdle())
+                    Debug.LogError($"[UnityRHI.DLSS-NR] GPU did not become idle before {reason}; " +
+                        "persistent DLSS-NR resources may still be in use.");
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"[UnityRHI.DLSS-NR] GPU idle wait failed before {reason}: {exception}");
+            }
         }
     }
 }

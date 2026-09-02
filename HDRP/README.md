@@ -15,3 +15,10 @@ Renderer Feature or Custom Pass. The package contains no URP implementation.
 The component consumes HDRP's camera color, depth, and motion-vector textures.
 It bypasses safely when HDRP has not produced depth or motion vectors for the
 current camera, or when the native DLSS-NR runtime is unavailable.
+
+The current HDRP implementation is intentionally limited to mono 1x native
+rendering (`InputWidth == OutputWidth`, `Upscaling = false`). SceneView remains
+pass-through by design. Stereo/XR cameras and invalid or unavailable targets
+bypass to the original HDRP image. Persistent camera resources wait for GPU
+idle before release when a camera is destroyed, resized, or the post process is
+cleaned up.

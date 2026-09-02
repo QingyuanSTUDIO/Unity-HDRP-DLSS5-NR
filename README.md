@@ -84,6 +84,11 @@ Game 相机使用完整 DLSS-NR 路径。SceneView 当前直接显示 HDRP 原�
 不执行 native DLSS-NR，以避免编辑器相机缺少稳定时域历史导致灰屏、黑屏或闪烁。因此
 SceneView 不保证显示与 Game 窗口相同的 DLSS 效果，请在 Game 窗口或构建版本确认。
 
+当前 HDRP 集成固定为单眼 1x native 路径：输入和输出尺寸相同，`Upscaling` 保持关闭。
+立体/XR Game 相机、HDR 输出或缺少有效输入资源时会安全回退到 HDRP 原图；这类旁路不会
+创建或复用单眼时域历史。分辨率变化、相机销毁和后处理清理会在释放持久资源前等待 GPU
+完成，以降低 native command stream 仍在使用旧资源时的崩溃风险。
+
 每个相机拥有独立 native context 和时域历史；分辨率、投影、相机切换或 Volume 参数
 变化时会自动重置历史。
 
@@ -169,6 +174,10 @@ Game cameras run the full path. SceneView is intentionally pass-through because 
 do not provide stable runtime temporal history. Check the Game view or a player build for the
 actual effect. Common failures are wrong graphics API, camera DLSS disabled, a non-embedded native
 package, missing runtime, an unregistered custom post process, or a disabled Volume override.
+The current HDRP path is intentionally limited to mono 1x native rendering: input and output
+dimensions are equal and `Upscaling` remains disabled. Stereo/XR cameras, HDR output, or invalid
+input resources bypass to the original HDRP image. Persistent resources wait for GPU idle before
+release during resize, camera destruction, or post-process cleanup.
 
 The NVIDIA native runtime must be obtained separately through a legitimate source. This
 repository does not include, redistribute, or link to leaked NVIDIA binaries. NVIDIA runtime
