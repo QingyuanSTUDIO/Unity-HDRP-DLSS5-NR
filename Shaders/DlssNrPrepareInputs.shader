@@ -64,18 +64,27 @@ Shader "Hidden/UnityRHI/DLSS-NR/PrepareInputs"
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 Outputs output;
-                float2 uv = input.uv * _DlssNrInputScale.xy;
+                float2 colorUv = input.uv * _DlssNrInputScale.xy;
                 output.color = SAMPLE_TEXTURE2D_X(_DlssNrInputColor,
-                    sampler_LinearClamp, uv);
+                    sampler_LinearClamp, colorUv);
                 output.fallback = output.color;
-                // Preserve HDRP's raw device depth. Depth inversion is communicated
-                // separately to NGX through SystemInfo.usesReversedZBuffer.
-                output.depth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture,
-                    sampler_PointClamp, uv).r;
-                // HDRP motion is previous-to-current UV/NDC. The C# dispatch scale
-                // flips direction and converts it to full-resolution pixels.
-                output.motion = SAMPLE_TEXTURE2D_X(_CameraMotionVectorsTexture,
-                    sampler_PointClamp, uv).xy;
+
+                // Depth and motion remain at the camera render resolution even
+                // when the post-process color uses a different RTHandle scale.
+                // HDRP reads these buffers in integer screen pixels; reusing the
+                // color UV scale can sample padding or an unrelated sub-rectangle.
+                uint2 pixelCoord = uint2(input.positionCS.xy);
+                output.depth = LOAD_TEXTURE2D_X_LOD(_CameraDepthTexture,
+                    pixelCoord, 0).r;
+
+                // HDRP encodes pixels without a valid motion vector using x > 1.
+                // Decode that sentinel before copying into the RG16F native input;
+                // otherwise it becomes a saturated full-screen motion vector.
+                float4 encodedMotion = LOAD_TEXTURE2D_X_LOD(
+                    _CameraMotionVectorsTexture, pixelCoord, 0);
+                output.motion = encodedMotion.x > 1.0f
+                    ? float2(0.0f, 0.0f)
+                    : encodedMotion.xy;
                 return output;
             }
             ENDHLSL
@@ -96,8 +105,12 @@ Shader "Hidden/UnityRHI/DLSS-NR/PrepareInputs"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
 
-            TEXTURE2D_X(_DlssNrInputDepth);
-            TEXTURE2D_X(_DlssNrInputMotion);
+            // These are the fixed mono RenderTextures allocated by
+            // DlssNrCameraContext. The Game path deliberately rejects stereo,
+            // so declaring them as TEXTURE2D_X can incorrectly expand them to
+            // Texture2DArray and make Unity bind UnityDefault2DArray instead.
+            TEXTURE2D(_DlssNrInputDepth);
+            TEXTURE2D(_DlssNrInputMotion);
 
             int _DlssNrDebugMode;
             float _DlssNrDebugMotionScaleX;
@@ -144,8 +157,13 @@ Shader "Hidden/UnityRHI/DLSS-NR/PrepareInputs"
 
                 if (_DlssNrDebugMode == 1 || _DlssNrDebugMode == 2)
                 {
-                    float2 rawMotion = SAMPLE_TEXTURE2D_X(_DlssNrInputMotion,
-                        sampler_PointClamp, input.uv).xy;
+                    // The debug target and prepared inputs have identical fixed
+                    // dimensions. Load by integer pixel so the visualization is
+                    // exactly the data handed to native, without another UV or
+                    // RTHandle scale conversion.
+                    uint2 pixelCoord = uint2(input.positionCS.xy);
+                    float2 rawMotion = LOAD_TEXTURE2D_LOD(
+                        _DlssNrInputMotion, pixelCoord, 0).xy;
                     float2 motionPixels = rawMotion * float2(
                         _DlssNrDebugMotionScaleX, _DlssNrDebugMotionScaleY);
                     float range = max(_DlssNrDebugMotionRange, 1e-4);
@@ -164,8 +182,9 @@ Shader "Hidden/UnityRHI/DLSS-NR/PrepareInputs"
                     return float4(MotionHeatmap(magnitude), 1.0);
                 }
 
-                float rawDepth = SAMPLE_TEXTURE2D_X(_DlssNrInputDepth,
-                    sampler_PointClamp, input.uv).r;
+                uint2 pixelCoord = uint2(input.positionCS.xy);
+                float rawDepth = LOAD_TEXTURE2D_LOD(
+                    _DlssNrInputDepth, pixelCoord, 0).r;
                 if (_DlssNrDebugMode == 3)
                     return float4(rawDepth.xxx, 1.0);
 
