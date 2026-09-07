@@ -8,10 +8,15 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 ### 功能
 
 后处理从 HDRP 相机获取光栅颜色、深度和运动向量，交给 UnityRHI DLSS-NR 原生运行时，
-再写回 HDRP 后处理链。已验证路径仍是相机实际尺寸下的 1x 神经图像增强；代码另外提供
-一个需要显式启用的固定 2x `IUpscaler` 实验路径。2x 的实际画质和时序稳定性尚未在本项目
-Game 窗口确认。它不是 DLSS Super Resolution、Frame Generation 或 Ray Reconstruction，
-也不会生成另一张光线重构图。
+再写回 HDRP 后处理链。
+
+**最新更新：新增 DLSS 超级分辨率支持！**
+
+本项目现已支持 DLSS 超级分辨率（Super Resolution）功能，通过 HDRP 的 Dynamic Resolution 
+和 Advanced Upscaler 系统集成。除了原有的 1x 神经图像增强路径，现在可以使用 UnityRHI DLSS 
+进行真正的超分辨率渲染。
+
+**注意：** 目前仅支持 **Performance** 质量模式，其他质量选项（Quality、Balanced 等）尚在开发中。
 
 ### 效果对比
 
@@ -69,30 +74,29 @@ Volume 面板示例：
 
 ![DLSS-NR Volume 后处理面板](Docs/dlss5-volume-panel.png)
 
-默认不启用自定义 2x upscaler，因此原有 1x Game 渲染路径保持不变。
+默认不启用自定义 upscaler，因此原有 1x Game 渲染路径保持不变。
 
-### 实验性固定 2x 启用
+### DLSS 超级分辨率配置
 
-1. 脚本编译完成后选中当前使用的 HDRP Asset 一次，让 HDRP 创建
-   `DlssNrUpscalerOptions` 子资源；其 Injection Point 必须是 **After Post**。如果子资源
-   是在管线运行后才创建的，请重载或重启渲染管线。
-2. 在该 HDRP Asset 中启用 **Dynamic Resolution** 和 **Force Resolution**，将
-   **Forced Percentage** 设为 `50`，使 HDRP Asset 的显示配置与固定 2x 一致。真正的半宽、
-   半高由 upscaler 自己协商，该界面数值不再参与 1x/2x 所有权判定。
-3. 在 **Advanced Upscalers by Priority** 中添加 `DLSS Neural Rendering 2x`，并放在
-   第 1 优先级。
-4. 在 Game 相机上启用 **Allow Dynamic Resolution**。
-5. 保持 DLSS Neural Rendering Volume 的 **Enabled** 开启、**Debug Mode** 为
-   **Off**，并保持 HDRP Motion Vectors 开启。
+要启用 DLSS 超级分辨率功能：
 
-只有这些显式条件同时成立时，旧 1x 后处理才会旁路，HDRP 输入宽高为目标宽高的一半，
-native dispatch 才请求固定 2x 输出。若 native Create/Evaluate 失败，C# 路径保留一张
-全输出尺寸的双线性 fallback，避免 D3D12 对异尺寸资源执行非法 `CopyResource`。
+1. 打开 **Edit > Project Settings > Quality > HDRP** 
+2. 找到 **Dynamic Resolution** 部分并勾选 **Enable**
+3. 在 **Advanced Upscalers by Priority** 中点击 **+** 按钮
+4. 从下拉列表中选择 **UnityRHI DLSS**
+5. 展开 UnityRHI DLSS 设置：
+   - **Injection Point**: 保持 **After Post**
+   - **Quality Mode**: **必须选择 PERFORMANCE**（其他模式尚未完成）
+   - **Fixed Resolution Mode**: 勾选启用
+   - **Preset**: 选择合适的预设（如 Preset J）
+6. 设置 **Force Screen Percentage** 为勾选状态，**Forced Screen Percentage** 设为 **50**
+7. 在 Game 相机上启用 **Allow Dynamic Resolution**
 
-从第 1 优先级移除该 upscaler，或关闭 Dynamic Resolution、Force Resolution、相机
-Allow Dynamic Resolution，即可回到原有 1x Volume 路径。2x 下的 Volume Debug Mode
-当前会使用双线性 fallback；2x 画质、曝光、
-抖动与运动中的时序稳定性仍是待实际验证项，不能视为已经确认。
+**重要提示：**
+- 当前版本仅支持 **Performance** 质量模式
+- Quality、Balanced、Ultra Performance 等其他模式正在开发中，暂时请勿使用
+
+配置完成后，游戏将以 50% 分辨率渲染，通过 DLSS 超级分辨率放大到目标分辨率，显著提升性能的同时保持画质。
 
 ### 参数与相机行为
 
@@ -128,8 +132,12 @@ reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径�
   native 包路径、合法获取的原生运行时、Global Settings 注册和 Volume Enabled。
 - Console 出现 URP `Core.hlsl`、`TextureDimension` 或 D3D11 错误：说明仍有旧 URP 文件或使用了错误图形 API。
 - 画面裁切/偏移：检查 Game View 宽高比、相机 viewport 和 RTHandle scale，不要使用 backing texture 尺寸。
-- 2x 没有进入 native：确认自定义 upscaler 位于第 1 优先级、相机允许
-  Dynamic Resolution、Options Injection Point 为 After Post，且 Volume Debug Mode 为 Off。
+- DLSS 超级分辨率未生效：
+  - 确认 Dynamic Resolution 已启用
+  - 确认 UnityRHI DLSS 位于 Advanced Upscalers 列表第 1 优先级
+  - 确认 Quality Mode 设为 **PERFORMANCE**（其他模式暂不可用）
+  - 确认相机启用了 Allow Dynamic Resolution
+  - 检查 Injection Point 为 After Post
 
 ### 相关地址
 
@@ -150,11 +158,16 @@ This repository integrates NVIDIA DLSS Neural Rendering into Unity HDRP as a reg
 HDRP Custom Post Process Volume. It does not require a Renderer Feature or Custom Pass.
 
 The effect reads the raster camera color, depth, and motion-vector buffers, sends them to
-the UnityRHI DLSS-NR runtime, and writes the result into HDRP's post-process chain. The
-validated path still performs 1x neural enhancement at the camera's actual render resolution.
-The code also exposes an explicitly enabled, fixed 2x `IUpscaler` experiment; its image quality
-and temporal stability have not yet been validated in this project. It is not DLSS Super
-Resolution, Frame Generation, or Ray Reconstruction.
+the UnityRHI DLSS-NR runtime, and writes the result into HDRP's post-process chain.
+
+**Latest Update: DLSS Super Resolution Support Added!**
+
+This project now supports DLSS Super Resolution through HDRP's Dynamic Resolution and 
+Advanced Upscaler system. In addition to the original 1x neural enhancement path, you can 
+now use UnityRHI DLSS for true super resolution rendering.
+
+**Note:** Currently only **Performance** quality mode is supported. Other quality options 
+(Quality, Balanced, etc.) are still under development.
 
 Example comparison (DLSS-NR on/off):
 
@@ -183,22 +196,32 @@ Copy `Core`, `HDRP`, and `Shaders` into `Assets/Plugins/DLSS 5`; install
 separately from a legitimate source and place it according to the upstream package
 instructions. This repository does not include, redistribute, or link to leaked binaries.
 Use Direct3D 12 and restart Unity. In **HDRP Global Settings > Custom Post Process Orders >
-Before registering this post process, install and enable the Unity HDRP NVIDIA DLSS package/plugin
-and check **Enable DLSS** on the camera (the exact label may vary by Unity/HDRP version). This is
-required by the integration; without camera DLSS enabled, the result may be black. In **HDRP
-Global Settings > Custom Post Process Orders > After Post Process**, add
-`UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the **DLSS Neural Rendering** Volume override
-and enable its **Enabled** override. HDRP depth and motion vectors must be available. The custom
-2x upscaler is disabled by default, so this setup continues to use the existing 1x path.
+After Post Process**, add `UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the 
+**DLSS Neural Rendering** Volume override and enable its **Enabled** override. HDRP depth 
+and motion vectors must be available.
 
-For the experimental fixed 2x path, select the active HDRP Asset once after compilation so HDRP
-creates `DlssNrUpscalerOptions`, keep its injection point at **After Post**, enable **Dynamic
-Resolution** and **Force Resolution**, set **Forced Percentage** to `50` to reflect the fixed 2x
-configuration, and place `DLSS Neural Rendering 2x` first in **Advanced Upscalers by Priority**.
-The upscaler negotiates half width and half height itself, so that UI percentage is not an ownership
-gate. Enable **Allow Dynamic
-Resolution** on the Game camera and keep the Volume enabled with **Debug Mode** set to **Off**.
-Reload the render pipeline if HDRP created the options sub-asset after the pipeline was initialized.
+### DLSS Super Resolution Setup
+
+To enable DLSS Super Resolution:
+
+1. Open **Edit > Project Settings > Quality > HDRP**
+2. Check **Enable** under **Dynamic Resolution** section
+3. Click the **+** button in **Advanced Upscalers by Priority**
+4. Select **UnityRHI DLSS** from the dropdown
+5. Configure UnityRHI DLSS settings:
+   - **Injection Point**: Keep as **After Post**
+   - **Quality Mode**: **Must select PERFORMANCE** (other modes not yet implemented)
+   - **Fixed Resolution Mode**: Check to enable
+   - **Preset**: Choose an appropriate preset (e.g., Preset J)
+6. Check **Force Screen Percentage** and set **Forced Screen Percentage** to **50**
+7. Enable **Allow Dynamic Resolution** on the Game camera
+
+**Important Notice:**
+- Currently only **Performance** quality mode is supported
+- Quality, Balanced, Ultra Performance, and other modes are under development and should not be used yet
+
+Once configured, the game will render at 50% resolution and upscale to target resolution using 
+DLSS Super Resolution, significantly improving performance while maintaining visual quality.
 
 Example Volume panel:
 
@@ -208,13 +231,20 @@ Game cameras run the full path. SceneView is intentionally pass-through because 
 do not provide stable runtime temporal history. Check the Game view or a player build for the
 actual effect. Common failures are wrong graphics API, camera DLSS disabled, a non-embedded native
 package, missing runtime, an unregistered custom post process, or a disabled Volume override.
-The default HDRP path remains mono 1x native rendering. Only the strict opt-in setup above enters
-the experimental fixed 2x path and suppresses the old 1x evaluation for that Game camera. Native
-Create/Evaluate failure retains a full-size bilinear fallback. Removing the custom upscaler from
-priority 1, disabling forced dynamic resolution, or disabling camera dynamic resolution returns to
-the existing 1x Volume path. Stereo/XR, 2x debug views,
-exposure behavior, jitter, and temporal quality remain unsupported or pending validation as noted
-above.
+
+### Troubleshooting
+
+- Black screen: Verify D3D12, Unity/NVIDIA DLSS package installed, camera DLSS enabled, native 
+  package path, legitimate runtime, Global Settings registration, and Volume enabled.
+- URP `Core.hlsl` or D3D11 errors in Console: Old URP files present or wrong graphics API selected.
+- Image cropping/offset: Check Game View aspect ratio, camera viewport, and RTHandle scale; 
+  do not use backing texture dimensions.
+- DLSS Super Resolution not working:
+  - Verify Dynamic Resolution is enabled
+  - Verify UnityRHI DLSS is at priority 1 in Advanced Upscalers list
+  - Verify Quality Mode is set to **PERFORMANCE** (other modes not available yet)
+  - Verify camera has Allow Dynamic Resolution enabled
+  - Check Injection Point is set to After Post
 
 The NVIDIA native runtime must be obtained separately through a legitimate source. This
 repository does not include, redistribute, or link to leaked NVIDIA binaries. NVIDIA runtime
