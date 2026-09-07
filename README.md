@@ -33,12 +33,7 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 | UnityDLSSNR | 上游 UnityRHI managed/native 包，本仓库依赖它 | [Kuan-Mi/UnityDLSSNR](https://github.com/Kuan-Mi/UnityDLSSNR) |
 | Managed 包 | `top.kuanmi.unityrhi` | [最新 Release](https://github.com/Kuan-Mi/UnityDLSSNR/releases/latest) |
 | Native 包 | `top.kuanmi.unityrhi.native`，必须嵌入项目 | [native 1.0.0 下载](https://github.com/Kuan-Mi/UnityDLSSNR/releases/download/v1.0.0/top.kuanmi.unityrhi.native-1.0.0.zip) |
-| Unity NVIDIA DLSS | 必须安装项目使用的 Unity HDRP NVIDIA DLSS 包/插件，并在相机上启用 DLSS | [HDRP DLSS 文档](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/DLSS.html) |
-| NVIDIA | 支持 DLSS-NR 的 NVIDIA GPU、驱动和匹配的原生运行时 | [NVIDIA DLSS](https://developer.nvidia.com/dlss) |
-
-Unity Package Manager 中应能看到已安装的 **NVIDIA** 模块：
-
-![Unity Package Manager NVIDIA 模块](Docs/unity-package-manager-nvidia.png)
+| NVIDIA | 支持 DLSS 的 NVIDIA GPU 和驱动 | [NVIDIA DLSS](https://developer.nvidia.com/dlss) |
 
 平台仅支持 Windows x64 + Direct3D 12；不支持 D3D11、macOS、Linux 或非 NVIDIA 设备。
 
@@ -53,21 +48,18 @@ Unity Package Manager 中应能看到已安装的 **NVIDIA** 模块：
    ```
 
    native 包必须位于目标项目 `Packages` 下，不能直接引用外部 `Build` 文件夹；请自行
-   通过合法、可信的渠道获取与驱动匹配的 NVIDIA DLSS-NR 原生运行时，并按上游项目
+   通过合法、可信的渠道获取与驱动匹配的 NVIDIA DLSS 原生运行时，并按上游项目
    的说明放入该包的插件目录。本仓库不包含、不分发也不提供泄露的 NVIDIA 二进制文件。
 4. 在 **Edit > Project Settings > Player > Other Settings** 设置 **Direct3D 12**，
    重启 Unity。
-5. 确认项目已安装并启用 Unity HDRP 的 NVIDIA DLSS 包/插件，并在使用的相机上勾选
-   **Enable DLSS**（或项目对应版本中的同名 DLSS 开关）。这是本后处理的必要前置；
-   如果相机没有启用 Unity/NVIDIA DLSS，后处理可能输出黑屏。
-6. 在 **Edit > Project Settings > Graphics > HDRP Global Settings** 的
+5. 在 **Edit > Project Settings > Graphics > HDRP Global Settings** 的
    **Custom Post Process Orders > After Post Process** 添加：
 
    ```text
    UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess
    ```
 
-7. 在 Volume Profile 中选择 **Add Override > Post-processing > DLSS Neural Rendering**，
+6. 在 Volume Profile 中选择 **Add Override > Post-processing > DLSS Neural Rendering**，
    勾选 **Enabled** override 并打开。确认 HDRP 相机启用 Depth 和 Motion Vectors。
 
 Volume 面板示例：
@@ -90,11 +82,12 @@ Volume 面板示例：
    - **Fixed Resolution Mode**: 勾选启用
    - **Preset**: 选择合适的预设（如 Preset J）
 6. 设置 **Force Screen Percentage** 为勾选状态，**Forced Screen Percentage** 设为 **50**
-7. 在 Game 相机上启用 **Allow Dynamic Resolution**
+7. 在 Game 相机上勾选 **Allow Dynamic Resolution**
 
 **重要提示：**
 - 当前版本仅支持 **Performance** 质量模式
 - Quality、Balanced、Ultra Performance 等其他模式正在开发中，暂时请勿使用
+- 无需安装 Unity 官方的 NVIDIA DLSS 包，本项目已自行实现 DLSS 功能
 
 配置完成后，游戏将以 50% 分辨率渲染，通过 DLSS 超级分辨率放大到目标分辨率，显著提升性能的同时保持画质。
 
@@ -128,15 +121,14 @@ reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径�
 
 ### 排错
 
-- 黑屏/灰屏：确认 D3D12、Unity/NVIDIA DLSS 包已安装、相机上的 **Enable DLSS** 已开启、
-  native 包路径、合法获取的原生运行时、Global Settings 注册和 Volume Enabled。
+- 黑屏/灰屏：确认 D3D12 已设置、native 包路径正确、合法获取的原生运行时已放置、Global Settings 已注册后处理、Volume 已启用。
 - Console 出现 URP `Core.hlsl`、`TextureDimension` 或 D3D11 错误：说明仍有旧 URP 文件或使用了错误图形 API。
 - 画面裁切/偏移：检查 Game View 宽高比、相机 viewport 和 RTHandle scale，不要使用 backing texture 尺寸。
 - DLSS 超级分辨率未生效：
   - 确认 Dynamic Resolution 已启用
   - 确认 UnityRHI DLSS 位于 Advanced Upscalers 列表第 1 优先级
   - 确认 Quality Mode 设为 **PERFORMANCE**（其他模式暂不可用）
-  - 确认相机启用了 Allow Dynamic Resolution
+  - 确认相机勾选了 Allow Dynamic Resolution
   - 检查 Injection Point 为 After Post
 
 ### 相关地址
@@ -180,13 +172,8 @@ Example comparison (DLSS-NR on/off):
 - Upstream managed/native dependency: [Kuan-Mi/UnityDLSSNR](https://github.com/Kuan-Mi/UnityDLSSNR)
 - Managed package: [latest release](https://github.com/Kuan-Mi/UnityDLSSNR/releases/latest)
 - Native package: [top.kuanmi.unityrhi.native 1.0.0](https://github.com/Kuan-Mi/UnityDLSSNR/releases/download/v1.0.0/top.kuanmi.unityrhi.native-1.0.0.zip)
-- Unity HDRP NVIDIA DLSS package/plugin must be installed and DLSS enabled on the camera: [HDRP DLSS manual](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/DLSS.html)
 - NVIDIA DLSS runtime information: [NVIDIA DLSS](https://developer.nvidia.com/dlss)
 - Platform: Windows x64, Direct3D 12, supported NVIDIA GPU/driver.
-
-The Unity Package Manager should show the installed **NVIDIA** module:
-
-![Unity Package Manager NVIDIA module](Docs/unity-package-manager-nvidia.png)
 
 ### Installation
 
@@ -219,6 +206,7 @@ To enable DLSS Super Resolution:
 **Important Notice:**
 - Currently only **Performance** quality mode is supported
 - Quality, Balanced, Ultra Performance, and other modes are under development and should not be used yet
+- No need to install Unity's official NVIDIA DLSS package; this project has its own DLSS implementation
 
 Once configured, the game will render at 50% resolution and upscale to target resolution using 
 DLSS Super Resolution, significantly improving performance while maintaining visual quality.
@@ -234,8 +222,8 @@ package, missing runtime, an unregistered custom post process, or a disabled Vol
 
 ### Troubleshooting
 
-- Black screen: Verify D3D12, Unity/NVIDIA DLSS package installed, camera DLSS enabled, native 
-  package path, legitimate runtime, Global Settings registration, and Volume enabled.
+- Black screen: Verify D3D12 is set, native package path is correct, legitimate runtime is placed, 
+  Global Settings post-process is registered, and Volume is enabled.
 - URP `Core.hlsl` or D3D11 errors in Console: Old URP files present or wrong graphics API selected.
 - Image cropping/offset: Check Game View aspect ratio, camera viewport, and RTHandle scale; 
   do not use backing texture dimensions.
@@ -243,7 +231,7 @@ package, missing runtime, an unregistered custom post process, or a disabled Vol
   - Verify Dynamic Resolution is enabled
   - Verify UnityRHI DLSS is at priority 1 in Advanced Upscalers list
   - Verify Quality Mode is set to **PERFORMANCE** (other modes not available yet)
-  - Verify camera has Allow Dynamic Resolution enabled
+  - Verify camera has Allow Dynamic Resolution checked
   - Check Injection Point is set to After Post
 
 The NVIDIA native runtime must be obtained separately through a legitimate source. This
