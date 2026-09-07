@@ -29,6 +29,7 @@ namespace UnityRhi.DlssNr.Hdrp
 
         private static readonly int InputColorId = UnityEngine.Shader.PropertyToID("_DlssNrInputColor");
         private static readonly int InputScaleId = UnityEngine.Shader.PropertyToID("_DlssNrInputScale");
+        private static readonly int AuxiliaryScaleId = UnityEngine.Shader.PropertyToID("_DlssNrAuxiliaryScale");
         private static readonly int InputDepthId = UnityEngine.Shader.PropertyToID("_DlssNrInputDepth");
         private static readonly int InputMotionId = UnityEngine.Shader.PropertyToID("_DlssNrInputMotion");
         private static readonly int DebugModeId = UnityEngine.Shader.PropertyToID("_DlssNrDebugMode");
@@ -129,18 +130,15 @@ namespace UnityRhi.DlssNr.Hdrp
                 return;
             }
 
-            // In HDRP custom post processes, the source RTHandle can carry a
-            // backing-resource viewport (for example 1920x1920) that is not the
-            // camera image size (for example 1920x1080). DLSS dimensions must use
-            // HDCamera's actual viewport; the RTHandle scale below handles sampling
-            // from any larger backing allocation.
-            int width = camera.actualWidth;
-            int height = camera.actualHeight;
-            if ((width <= 0 || height <= 0) && source.rtHandleProperties.currentViewportSize.x > 0)
+            // HDRP installs the pass's output viewport on these handles immediately
+            // before Render. HDCamera sizes may already be reset by graph recording.
+            Vector2Int viewport = source.rtHandleProperties.currentViewportSize;
+            int width = viewport.x;
+            int height = viewport.y;
+            if (width <= 0 || height <= 0)
             {
-                Vector2Int viewport = source.rtHandleProperties.currentViewportSize;
-                width = viewport.x;
-                height = viewport.y;
+                width = Mathf.RoundToInt(camera.postProcessScreenSize.x);
+                height = Mathf.RoundToInt(camera.postProcessScreenSize.y);
             }
             if ((width <= 0 || height <= 0) && source.rt != null)
             {
@@ -202,6 +200,11 @@ namespace UnityRhi.DlssNr.Hdrp
                 if (inputScale.x <= 0f || inputScale.y <= 0f)
                     inputScale = Vector4.one;
                 _prepareMaterial.SetVector(InputScaleId, inputScale);
+                int auxiliaryWidth = Mathf.Max(1, camera.actualWidth);
+                int auxiliaryHeight = Mathf.Max(1, camera.actualHeight);
+                _prepareMaterial.SetVector(AuxiliaryScaleId, new Vector4(
+                    (float)auxiliaryWidth / width, (float)auxiliaryHeight / height,
+                    auxiliaryWidth, auxiliaryHeight));
                 RenderTargetIdentifier[] mrt = { context.ColorRt, context.MotionRt, context.DepthRt, context.OutputRt };
                 cmd.SetRenderTarget(mrt, BuiltinRenderTextureType.None);
                 // Custom post-process targets are persistent fixed-size textures,
@@ -211,11 +214,7 @@ namespace UnityRhi.DlssNr.Hdrp
                 cmd.SetViewport(new Rect(0f, 0f, width, height));
                 cmd.DrawProcedural(Matrix4x4.identity, _prepareMaterial, 0, MeshTopology.Triangles, 3, 1);
 
-                DlssNrSettings settings = new DlssNrSettings(preset.value, style.value, intensity.value,
-                    localToneStrength.value, localStructureStrength.value, skinStructureStrength.value,
-                    useAutoMask.value, uiCorrection.value, motionVectorScale.value,
-                    cameraCutDistance.value, cameraCutAngle.value, debugMode.value,
-                    debugMotionRange.value, debugDepthRange.value);
+                DlssNrSettings settings = GetSettingsSnapshot();
                 if (settings.DebugMode != DlssNrDebugMode.Off)
                 {
                     _debugMaterial.SetTexture(InputDepthId, context.DepthRt);
@@ -232,6 +231,9 @@ namespace UnityRhi.DlssNr.Hdrp
                 else
                 {
                     context.Record(cmd, context.BeginFrame(camera.camera, Time.frameCount, settings));
+                    // NR also clears native graphics state; submit before HDRP's
+                    // output blit so it records with a fresh command list.
+                    RhiCore.SignalSyncPoint(cmd);
                 }
 
                 // The persistent output texture is exactly the DLSS viewport size,
@@ -274,6 +276,31 @@ namespace UnityRhi.DlssNr.Hdrp
             CoreUtils.Destroy(_debugMaterial);
             _prepareMaterial = null;
             _debugMaterial = null;
+        }
+
+        internal DlssNrSettings GetSettingsSnapshot()
+        {
+            return new DlssNrSettings(preset.value, style.value, intensity.value,
+                localToneStrength.value, localStructureStrength.value, skinStructureStrength.value,
+                useAutoMask.value, uiCorrection.value, motionVectorScale.value,
+                cameraCutDistance.value, cameraCutAngle.value, debugMode.value,
+                debugMotionRange.value, debugDepthRange.value);
+        }
+
+        internal static void UpdateDiagnostics(Camera camera, Vector2Int inputSize,
+            Vector2Int outputSize)
+        {
+            LastInputWidth = inputSize.x;
+            LastInputHeight = inputSize.y;
+            LastOutputWidth = outputSize.x;
+            LastOutputHeight = outputSize.y;
+            LastGameTargetWidth = camera.pixelWidth > 0 ? camera.pixelWidth : outputSize.x;
+            LastGameTargetHeight = camera.pixelHeight > 0 ? camera.pixelHeight : outputSize.y;
+            LastCameraName = camera.name;
+            LastNativeCreateResult = RhiCore.DlssNrLastCreateResult;
+            LastNativeEvaluateResult = RhiCore.DlssNrLastEvaluateResult;
+            LastDroppedCommandStreamCount = RhiCore.DroppedCommandStreamCount;
+            LastDeviceRemovedReason = RhiCore.DeviceRemovedReason;
         }
 
         private void PruneDeadCameras()

@@ -1,0 +1,40 @@
+#pragma kernel Resolve2D
+#pragma kernel ResolveArray DLSS_OUTPUT_ARRAY
+#pragma only_renderers d3d11
+
+Texture2D<float4> _DlssInputColor;
+Texture2D<float4> _DlssOutput;
+SamplerState sampler_LinearClamp;
+int2 _DlssOutputSize;
+
+#if defined(DLSS_OUTPUT_ARRAY)
+RWTexture2DArray<float4> _DlssDestination;
+#else
+RWTexture2D<float4> _DlssDestination;
+#endif
+
+void Resolve(uint2 pixel)
+{
+    if (any(pixel >= (uint2)_DlssOutputSize))
+        return;
+    float2 uv = (float2(pixel) + 0.5) / _DlssOutputSize;
+    float4 color = _DlssOutput.Load(int3(pixel, 0));
+    color.a = _DlssInputColor.SampleLevel(sampler_LinearClamp, uv, 0).a;
+#if defined(DLSS_OUTPUT_ARRAY)
+    _DlssDestination[uint3(pixel, 0)] = color;
+#else
+    _DlssDestination[pixel] = color;
+#endif
+}
+
+[numthreads(8, 8, 1)]
+void Resolve2D(uint3 id : SV_DispatchThreadID)
+{
+    Resolve(id.xy);
+}
+
+[numthreads(8, 8, 1)]
+void ResolveArray(uint3 id : SV_DispatchThreadID)
+{
+    Resolve(id.xy);
+}

@@ -8,8 +8,9 @@ Custom Post Process Volume 运行，不需要 Renderer Feature，也不需要 Cu
 ### 功能
 
 后处理从 HDRP 相机获取光栅颜色、深度和运动向量，交给 UnityRHI DLSS-NR 原生运行时，
-再写回 HDRP 后处理链。当前版本按相机实际渲染尺寸读取输入，并可按目标输出尺寸执行
-放大，用于神经图像增强和时域重建。它不是 DLSS Super Resolution、Frame Generation 或 Ray Reconstruction，
+再写回 HDRP 后处理链。已验证路径仍是相机实际尺寸下的 1x 神经图像增强；代码另外提供
+一个需要显式启用的固定 2x `IUpscaler` 实验路径。2x 的实际画质和时序稳定性尚未在本项目
+Game 窗口确认。它不是 DLSS Super Resolution、Frame Generation 或 Ray Reconstruction，
 也不会生成另一张光线重构图。
 
 ### 效果对比
@@ -68,8 +69,30 @@ Volume 面板示例：
 
 ![DLSS-NR Volume 后处理面板](Docs/dlss5-volume-panel.png)
 
-本实现依赖相机上的 Unity/NVIDIA DLSS。请按项目需求配置动态分辨率；输入和输出尺寸
-由 HDRP 相机及其 DLSS 设置共同决定。
+默认不启用自定义 2x upscaler，因此原有 1x Game 渲染路径保持不变。
+
+### 实验性固定 2x 启用
+
+1. 脚本编译完成后选中当前使用的 HDRP Asset 一次，让 HDRP 创建
+   `DlssNrUpscalerOptions` 子资源；其 Injection Point 必须是 **After Post**。如果子资源
+   是在管线运行后才创建的，请重载或重启渲染管线。
+2. 在该 HDRP Asset 中启用 **Dynamic Resolution** 和 **Force Resolution**，将
+   **Forced Percentage** 设为 `50`，使 HDRP Asset 的显示配置与固定 2x 一致。真正的半宽、
+   半高由 upscaler 自己协商，该界面数值不再参与 1x/2x 所有权判定。
+3. 在 **Advanced Upscalers by Priority** 中添加 `DLSS Neural Rendering 2x`，并放在
+   第 1 优先级。
+4. 在 Game 相机上启用 **Allow Dynamic Resolution**。
+5. 保持 DLSS Neural Rendering Volume 的 **Enabled** 开启、**Debug Mode** 为
+   **Off**，并保持 HDRP Motion Vectors 开启。
+
+只有这些显式条件同时成立时，旧 1x 后处理才会旁路，HDRP 输入宽高为目标宽高的一半，
+native dispatch 才请求固定 2x 输出。若 native Create/Evaluate 失败，C# 路径保留一张
+全输出尺寸的双线性 fallback，避免 D3D12 对异尺寸资源执行非法 `CopyResource`。
+
+从第 1 优先级移除该 upscaler，或关闭 Dynamic Resolution、Force Resolution、相机
+Allow Dynamic Resolution，即可回到原有 1x Volume 路径。2x 下的 Volume Debug Mode
+当前会使用双线性 fallback；2x 画质、曝光、
+抖动与运动中的时序稳定性仍是待实际验证项，不能视为已经确认。
 
 ### 参数与相机行为
 
@@ -84,10 +107,11 @@ Game 相机使用完整 DLSS-NR 路径。SceneView 当前直接显示 HDRP 原�
 不执行 native DLSS-NR，以避免编辑器相机缺少稳定时域历史导致灰屏、黑屏或闪烁。因此
 SceneView 不保证显示与 Game 窗口相同的 DLSS 效果，请在 Game 窗口或构建版本确认。
 
-当前 HDRP 集成固定为单眼 1x native 路径：输入和输出尺寸相同，`Upscaling` 保持关闭。
-立体/XR Game 相机、HDR 输出或缺少有效输入资源时会安全回退到 HDRP 原图；这类旁路不会
-创建或复用单眼时域历史。分辨率变化、相机销毁和后处理清理会在释放持久资源前等待 GPU
-完成，以降低 native command stream 仍在使用旧资源时的崩溃风险。
+默认 HDRP 集成仍为单眼 1x native 路径：输入和输出尺寸相同，`Upscaling` 关闭。只有
+上述严格配置才进入实验性固定 2x 路径。立体/XR Game 相机、HDR 输出或缺少有效输入资源
+时会安全回退；这类旁路不会创建或复用单眼时域历史。分辨率变化、相机销毁和后处理清理
+会在释放持久资源前等待 GPU 完成，以降低 native command stream 仍在使用旧资源时的
+崩溃风险。
 
 每个相机拥有独立 native context 和时域历史；分辨率、投影、相机切换或 Volume 参数
 变化时会自动重置历史。
@@ -104,7 +128,8 @@ reactive mask、exposure texture 和 ray-tracing buffers 不属于当前路径�
   native 包路径、合法获取的原生运行时、Global Settings 注册和 Volume Enabled。
 - Console 出现 URP `Core.hlsl`、`TextureDimension` 或 D3D11 错误：说明仍有旧 URP 文件或使用了错误图形 API。
 - 画面裁切/偏移：检查 Game View 宽高比、相机 viewport 和 RTHandle scale，不要使用 backing texture 尺寸。
-- 没有明显效果：DLSS-NR 的增强和放大效果取决于相机 DLSS 输入/输出比例；请在高频细节、运动和 Debug Mode 下比较。
+- 2x 没有进入 native：确认自定义 upscaler 位于第 1 优先级、相机允许
+  Dynamic Resolution、Options Injection Point 为 After Post，且 Volume Debug Mode 为 Off。
 
 ### 相关地址
 
@@ -126,8 +151,9 @@ HDRP Custom Post Process Volume. It does not require a Renderer Feature or Custo
 
 The effect reads the raster camera color, depth, and motion-vector buffers, sends them to
 the UnityRHI DLSS-NR runtime, and writes the result into HDRP's post-process chain. The
-current implementation reads the camera's actual render resolution and can upscale to the
-target output resolution. It is neural enhancement and temporal reconstruction, not DLSS Super
+validated path still performs 1x neural enhancement at the camera's actual render resolution.
+The code also exposes an explicitly enabled, fixed 2x `IUpscaler` experiment; its image quality
+and temporal stability have not yet been validated in this project. It is not DLSS Super
 Resolution, Frame Generation, or Ray Reconstruction.
 
 Example comparison (DLSS-NR on/off):
@@ -162,9 +188,17 @@ and check **Enable DLSS** on the camera (the exact label may vary by Unity/HDRP 
 required by the integration; without camera DLSS enabled, the result may be black. In **HDRP
 Global Settings > Custom Post Process Orders > After Post Process**, add
 `UnityRhi.DlssNr.Hdrp.DlssNrHdrpPostProcess`. Add the **DLSS Neural Rendering** Volume override
-and enable its **Enabled** override. HDRP depth and motion vectors must be available. Configure
-dynamic resolution according to the camera DLSS settings; input and output dimensions are derived
-from HDRP camera and DLSS configuration.
+and enable its **Enabled** override. HDRP depth and motion vectors must be available. The custom
+2x upscaler is disabled by default, so this setup continues to use the existing 1x path.
+
+For the experimental fixed 2x path, select the active HDRP Asset once after compilation so HDRP
+creates `DlssNrUpscalerOptions`, keep its injection point at **After Post**, enable **Dynamic
+Resolution** and **Force Resolution**, set **Forced Percentage** to `50` to reflect the fixed 2x
+configuration, and place `DLSS Neural Rendering 2x` first in **Advanced Upscalers by Priority**.
+The upscaler negotiates half width and half height itself, so that UI percentage is not an ownership
+gate. Enable **Allow Dynamic
+Resolution** on the Game camera and keep the Volume enabled with **Debug Mode** set to **Off**.
+Reload the render pipeline if HDRP created the options sub-asset after the pipeline was initialized.
 
 Example Volume panel:
 
@@ -174,10 +208,13 @@ Game cameras run the full path. SceneView is intentionally pass-through because 
 do not provide stable runtime temporal history. Check the Game view or a player build for the
 actual effect. Common failures are wrong graphics API, camera DLSS disabled, a non-embedded native
 package, missing runtime, an unregistered custom post process, or a disabled Volume override.
-The current HDRP path is intentionally limited to mono 1x native rendering: input and output
-dimensions are equal and `Upscaling` remains disabled. Stereo/XR cameras, HDR output, or invalid
-input resources bypass to the original HDRP image. Persistent resources wait for GPU idle before
-release during resize, camera destruction, or post-process cleanup.
+The default HDRP path remains mono 1x native rendering. Only the strict opt-in setup above enters
+the experimental fixed 2x path and suppresses the old 1x evaluation for that Game camera. Native
+Create/Evaluate failure retains a full-size bilinear fallback. Removing the custom upscaler from
+priority 1, disabling forced dynamic resolution, or disabling camera dynamic resolution returns to
+the existing 1x Volume path. Stereo/XR, 2x debug views,
+exposure behavior, jitter, and temporal quality remain unsupported or pending validation as noted
+above.
 
 The NVIDIA native runtime must be obtained separately through a legitimate source. This
 repository does not include, redistribute, or link to leaked NVIDIA binaries. NVIDIA runtime

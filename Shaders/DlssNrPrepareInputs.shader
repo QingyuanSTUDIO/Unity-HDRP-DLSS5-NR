@@ -28,6 +28,7 @@ Shader "Hidden/UnityRHI/DLSS-NR/PrepareInputs"
             TEXTURE2D_X(_CameraDepthTexture);
             TEXTURE2D_X(_CameraMotionVectorsTexture);
             float4 _DlssNrInputScale;
+            float4 _DlssNrAuxiliaryScale;
 
             struct Attributes
             {
@@ -69,11 +70,12 @@ Shader "Hidden/UnityRHI/DLSS-NR/PrepareInputs"
                     sampler_LinearClamp, colorUv);
                 output.fallback = output.color;
 
-                // Depth and motion remain at the camera render resolution even
-                // when the post-process color uses a different RTHandle scale.
-                // HDRP reads these buffers in integer screen pixels; reusing the
-                // color UV scale can sample padding or an unrelated sub-rectangle.
+                // Depth and motion stay at render resolution after SR. Map from
+                // post-process pixels into that viewport, excluding allocation padding.
                 uint2 pixelCoord = uint2(input.positionCS.xy);
+                if (_DlssNrAuxiliaryScale.x > 0 && _DlssNrAuxiliaryScale.y > 0)
+                    pixelCoord = min(uint2(input.positionCS.xy * _DlssNrAuxiliaryScale.xy),
+                        uint2(_DlssNrAuxiliaryScale.zw) - 1);
                 output.depth = LOAD_TEXTURE2D_X_LOD(_CameraDepthTexture,
                     pixelCoord, 0).r;
 
